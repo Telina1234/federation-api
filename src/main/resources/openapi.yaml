@@ -1,221 +1,182 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
-  title: Fédération
-  version: 1.0.0
+  title: Agricultural federation API
+  version: 0.0.2
+  description: |
+    Version v0.0.2 :
+    - Ajout fonctionnalité J (identity collectivity)
 
 servers:
   - url: http://localhost:8080
 
 paths:
-  /collectivites:
+
+  /collectivities:
     post:
-      summary: Créer une collectivité
+      summary: Create list of collectivities (A)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Collectivite'
+              type: array
+              items:
+                $ref: '#/components/schemas/CreateCollectivity'
       responses:
-        '201':
-          description: Created
-
-  /admissions:
-    post:
-      summary: Admission membre
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdmissionRequest'
-      responses:
-        '200':
-          description: OK
-        '400':
-          description: Bad Request
-
-  /paiements:
-    post:
-      summary: Enregistrer paiement
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Paiement'
-      responses:
-        '200':
-          description: OK
-
-  /comptes:
-    get:
-      summary: Liste comptes
-      responses:
-        '200':
-          description: OK
-
-  /activites:
-    post:
-      summary: Créer activité
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Activite'
-      responses:
-        '201':
-          description: Created
-
-  /presences:
-    post:
-      summary: Enregistrer présence
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Presence'
-      responses:
-        '200':
-          description: OK
-
-  /stats/collectivites/{id}:
-    get:
-      summary: Statistiques collectivité
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StatsCollectivite'
-
-  /stats/federation:
-    get:
-      summary: Statistiques fédération
-      responses:
-        '200':
-          description: OK
+        201:
+          description: Created collectivities
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/StatsFederation'
+                  $ref: '#/components/schemas/Collectivity'
+
+  /members:
+    post:
+      summary: Create list of members (B-2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreateMember'
+      responses:
+        201:
+          description: Created members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Member'
+        400:
+          description: Invalid referees or payment
+
+  /collectivities/{id}/identity:
+    put:
+      summary: Assign unique number and name (J)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectivityIdentity'
+      responses:
+        200:
+          description: Identity assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collectivity'
+        400:
+          description: Already assigned
+        409:
+          description: Name or number already exists
+        404:
+          description: Collectivity not found
 
 components:
   schemas:
-    Collectivite:
+
+    CreateCollectivity:
+      type: object
+      properties:
+        location:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberIdentifier'
+        federationApproval:
+          type: boolean
+        structure:
+          $ref: '#/components/schemas/CreateCollectivityStructure'
+
+    CreateCollectivityStructure:
+      type: object
+      properties:
+        president:
+          $ref: '#/components/schemas/MemberIdentifier'
+        vicePresident:
+          $ref: '#/components/schemas/MemberIdentifier'
+        treasurer:
+          $ref: '#/components/schemas/MemberIdentifier'
+        secretary:
+          $ref: '#/components/schemas/MemberIdentifier'
+
+    Collectivity:
       type: object
       properties:
         id:
-          type: integer
-        nom:
           type: string
-        ville:
+        number:
           type: string
-        specialite:
+        name:
+          type: string
+        location:
           type: string
 
-    AdmissionRequest:
+    CollectivityIdentity:
       type: object
-      required:
-        - collectiviteId
-        - parrains
-        - fraisAdhesion
-        - cotisationAnnuelle
+      required: [number, name]
       properties:
-        collectiviteId:
+        number:
+          type: string
+        name:
+          type: string
+
+    MemberIdentifier:
+      type: string
+
+    CreateMember:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        gender:
+          type: string
+        address:
+          type: string
+        profession:
+          type: string
+        phoneNumber:
           type: integer
-        nom:
+        email:
           type: string
-        prenom:
+        occupation:
           type: string
-        fraisAdhesion:
-          type: number
-        cotisationAnnuelle:
-          type: number
-        parrains:
+        collectivityIdentifier:
+          type: string
+        referees:
           type: array
           minItems: 2
           items:
-            $ref: '#/components/schemas/Parrain'
-
-    Parrain:
-      type: object
-      properties:
-        membreId:
-          type: integer
-        collectiviteId:
-          type: integer
-        relation:
-          type: string
-
-    Paiement:
-      type: object
-      properties:
-        membreId:
-          type: integer
-        montant:
-          type: number
-        date:
-          type: string
-          format: date
-        modePaiement:
-          type: string
-          enum: [ESPECE, VIREMENT, MOBILE_MONEY]
-
-    Activite:
-      type: object
-      properties:
-        nom:
-          type: string
-        date:
-          type: string
-          format: date
-        obligatoire:
+            $ref: '#/components/schemas/MemberIdentifier'
+        registrationFeePaid:
+          type: boolean
+        membershipDuesPaid:
           type: boolean
 
-    Presence:
+    Member:
       type: object
       properties:
-        membreId:
-          type: integer
-        activiteId:
-          type: integer
-        present:
-          type: boolean
-        excuse:
-          type: boolean
-
-    StatsCollectivite:
-      type: object
-      properties:
-        collectiviteId:
-          type: integer
-        tauxAssiduite:
-          type: number
-        totalCotisations:
-          type: number
-        montantImpayes:
-          type: number
-
-    StatsFederation:
-      type: object
-      properties:
-        collectiviteId:
-          type: integer
-        tauxAssiduite:
-          type: number
-        pourcentageMembresAJour:
-          type: number
-        nouveauxAdherents:
-          type: integer
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
