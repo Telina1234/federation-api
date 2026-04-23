@@ -10,6 +10,7 @@ import java.util.*;
 public class MemberService {
 
     private Map<String, Member> members = new HashMap<>();
+    private int counter = 1;
 
     public List<Member> create(List<CreateMember> requests) {
 
@@ -25,12 +26,13 @@ public class MemberService {
                 throw new RuntimeException("Payment required");
             }
 
-            Member m = new Member();
-            String id = "M" + System.currentTimeMillis();
+            String id = "M" + counter++;
 
+            Member m = new Member();
             m.setId(id);
             m.setFirstName(r.getFirstName());
             m.setLastName(r.getLastName());
+            m.setEmail(r.getEmail());
 
             members.put(id, m);
             result.add(m);

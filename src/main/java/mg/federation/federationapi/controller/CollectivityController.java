@@ -3,6 +3,7 @@ package mg.federation.federationapi.controller;
 import mg.federation.federationapi.dto.CreateCollectivity;
 import mg.federation.federationapi.dto.Collectivity;
 import mg.federation.federationapi.dto.CollectivityIdentity;
+import mg.federation.federationapi.dto.FinancialAccount;
 import mg.federation.federationapi.service.CollectivityService;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,9 +24,23 @@ public class CollectivityController {
         return service.create(requests);
     }
 
-    @PutMapping("/{id}/identity")
+    // ✅ CORRECTION ICI
+    @PutMapping("/{id}/informations")
     public Collectivity assignIdentity(@PathVariable String id,
                                        @RequestBody CollectivityIdentity request) {
         return service.assignIdentity(id, request);
+    }
+
+    @GetMapping("/{id}")
+    public Collectivity getById(@PathVariable String id) {
+        return service.getById(id);
+    }
+
+    @GetMapping("/{id}/financialAccounts")
+    public List<FinancialAccount> getAccounts(
+            @PathVariable String id,
+            @RequestParam String at) {
+
+        return service.getAccounts(id);
     }
 }

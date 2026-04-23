@@ -1,10 +1,7 @@
 openapi: 3.1.0
 info:
   title: Agricultural federation API
-  version: 0.0.2
-  description: |
-    Version v0.0.2 :
-    - Ajout fonctionnalité J (identity collectivity)
+  version: 0.0.3
 
 servers:
   - url: http://localhost:8080
@@ -13,9 +10,8 @@ paths:
 
   /collectivities:
     post:
-      summary: Create list of collectivities (A)
+      summary: Create collectivities
       requestBody:
-        required: true
         content:
           application/json:
             schema:
@@ -24,19 +20,62 @@ paths:
                 $ref: '#/components/schemas/CreateCollectivity'
       responses:
         201:
-          description: Created collectivities
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Collectivity'
+          description: Created
+
+  /collectivities/{id}/informations:
+    put:
+      summary: Assign name and number
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectivityIdentity'
+      responses:
+        200:
+          description: OK
+
+  /collectivities/{id}/membershipFees:
+    post:
+      summary: Create membership fees
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreateMembershipFee'
+      responses:
+        200:
+          description: OK
+
+    get:
+      summary: Get membership fees
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: OK
 
   /members:
     post:
-      summary: Create list of members (B-2)
+      summary: Create members
       requestBody:
-        required: true
         content:
           application/json:
             schema:
@@ -45,44 +84,27 @@ paths:
                 $ref: '#/components/schemas/CreateMember'
       responses:
         201:
-          description: Created members
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Member'
-        400:
-          description: Invalid referees or payment
+          description: OK
 
-  /collectivities/{id}/identity:
-    put:
-      summary: Assign unique number and name (J)
+  /members/{id}/payments:
+    post:
+      summary: Create payments
       parameters:
-        - name: id
-          in: path
+        - in: path
+          name: id
           required: true
           schema:
             type: string
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CollectivityIdentity'
+              type: array
+              items:
+                $ref: '#/components/schemas/CreateMemberPayment'
       responses:
-        200:
-          description: Identity assigned
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Collectivity'
-        400:
-          description: Already assigned
-        409:
-          description: Name or number already exists
-        404:
-          description: Collectivity not found
+        201:
+          description: OK
 
 components:
   schemas:
@@ -92,50 +114,16 @@ components:
       properties:
         location:
           type: string
-        members:
-          type: array
-          items:
-            $ref: '#/components/schemas/MemberIdentifier'
         federationApproval:
           type: boolean
-        structure:
-          $ref: '#/components/schemas/CreateCollectivityStructure'
-
-    CreateCollectivityStructure:
-      type: object
-      properties:
-        president:
-          $ref: '#/components/schemas/MemberIdentifier'
-        vicePresident:
-          $ref: '#/components/schemas/MemberIdentifier'
-        treasurer:
-          $ref: '#/components/schemas/MemberIdentifier'
-        secretary:
-          $ref: '#/components/schemas/MemberIdentifier'
-
-    Collectivity:
-      type: object
-      properties:
-        id:
-          type: string
-        number:
-          type: string
-        name:
-          type: string
-        location:
-          type: string
 
     CollectivityIdentity:
       type: object
-      required: [number, name]
       properties:
-        number:
-          type: string
         name:
           type: string
-
-    MemberIdentifier:
-      type: string
+        number:
+          type: string
 
     CreateMember:
       type: object
@@ -144,39 +132,64 @@ components:
           type: string
         lastName:
           type: string
-        birthDate:
-          type: string
-          format: date
-        gender:
-          type: string
-        address:
-          type: string
-        profession:
-          type: string
-        phoneNumber:
-          type: integer
         email:
-          type: string
-        occupation:
-          type: string
-        collectivityIdentifier:
           type: string
         referees:
           type: array
-          minItems: 2
           items:
-            $ref: '#/components/schemas/MemberIdentifier'
+            type: string
         registrationFeePaid:
           type: boolean
         membershipDuesPaid:
           type: boolean
 
-    Member:
+    CreateMembershipFee:
       type: object
       properties:
-        id:
+        amount:
+          type: number
+        label:
           type: string
-        firstName:
+        frequency:
           type: string
-        lastName:
+
+    CreateMemberPayment:
+      type: object
+      properties:
+        amount:
+          type: number
+        paymentMode:
           type: string
+
+
+          /collectivities/{id}:
+            get:
+              summary: Get one collectivity
+              parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+              responses:
+                200:
+                  description: OK
+
+          /collectivities/{id}/financialAccounts:
+            get:
+              summary: Get financial accounts
+              parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: at
+                  required: true
+                  schema:
+                    type: string
+                    format: date
+              responses:
+                200:
+                  description: OK
