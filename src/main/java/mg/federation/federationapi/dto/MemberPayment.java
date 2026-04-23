@@ -3,7 +3,7 @@ package mg.federation.federationapi.dto;
 public class MemberPayment {
 
     private String id;
-    private int amount;
+    private double amount;
     private String paymentMode;
     private String creationDate;
 
@@ -15,11 +15,11 @@ public class MemberPayment {
         this.id = id;
     }
 
-    public int getAmount() {
+    public double getAmount() {
         return amount;
     }
 
-    public void setAmount(int amount) {
+    public void setAmount(double amount) {
         this.amount = amount;
     }
 

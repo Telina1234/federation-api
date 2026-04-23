@@ -2,16 +2,16 @@ package mg.federation.federationapi.dto;
 
 public class CreateMemberPayment {
 
-    private int amount;
+    private double amount;
     private String membershipFeeIdentifier;
     private String accountCreditedIdentifier;
     private String paymentMode;
 
-    public int getAmount() {
+    public double getAmount() {
         return amount;
     }
 
-    public void setAmount(int amount) {
+    public void setAmount(double amount) {
         this.amount = amount;
     }
 
