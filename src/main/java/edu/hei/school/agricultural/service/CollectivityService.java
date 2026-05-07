@@ -99,6 +99,7 @@ public class CollectivityService {
         List<Member> members = memberRepository.findAllByCollectivity(collectivity);
         Map<String, Double> paidAmountByMember = memberPaymentRepository.getPaidAmountByMember(collectivityId, from, to);
         Map<String, Double> paidAmountByMemberAndFee = memberPaymentRepository.getPaidAmountByMemberAndFee(collectivityId, from, to);
+        Map<String, Double> attendanceRateByMember = activityRepository.getAttendanceRateByMember(collectivityId, from, to);
 
         return members.stream()
                 .map(member -> MemberPaymentStatistic.builder()
@@ -110,6 +111,7 @@ public class CollectivityService {
                                 paidAmountByMemberAndFee,
                                 from,
                                 to))
+                        .attendanceRate(attendanceRateByMember.getOrDefault(member.getId(), 100.0))
                         .build())
                 .toList();
     }
@@ -133,6 +135,7 @@ public class CollectivityService {
                                     collectivity.getId(),
                                     Date.valueOf(from),
                                     Date.valueOf(to)))
+                            .attendanceRate(activityRepository.getCollectivityAttendanceRate(collectivity.getId(), from, to))
                             .build();
                 })
                 .toList();

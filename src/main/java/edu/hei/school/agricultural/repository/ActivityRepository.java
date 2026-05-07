@@ -16,6 +16,9 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -195,6 +198,51 @@ public class ActivityRepository {
         }
     }
 
+    public Map<String, Double> getAttendanceRateByMember(String collectivityId, LocalDate from, LocalDate to) {
+        Map<String, AttendanceCounter> countersByMember = new HashMap<>();
+        try (PreparedStatement ps = connection.prepareStatement("""
+                select "member".id as member_id,
+                       activity_attendance.status
+                from "member"
+                    join collectivity_member on "member".id = collectivity_member.member_id
+                    join collectivity_activity on collectivity_member.collectivity_id = collectivity_activity.collectivity_id
+                    left join activity_attendance on collectivity_activity.id = activity_attendance.activity_id
+                        and "member".id = activity_attendance.member_id
+                where collectivity_member.collectivity_id = ?
+                  and collectivity_activity.activity_date between ? and ?
+                  and (
+                      collectivity_activity.target_occupation is null
+                      or collectivity_activity.target_occupation = "member".occupation
+                  )
+                """)) {
+            ps.setString(1, collectivityId);
+            ps.setDate(2, Date.valueOf(from));
+            ps.setDate(3, Date.valueOf(to));
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                AttendanceCounter counter = countersByMember.computeIfAbsent(
+                        rs.getString("member_id"),
+                        ignored -> new AttendanceCounter());
+                counter.expected++;
+                if (AttendanceStatus.PRESENT.name().equals(rs.getString("status"))) {
+                    counter.present++;
+                }
+            }
+            return mapCountersToRates(countersByMember);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public double getCollectivityAttendanceRate(String collectivityId, LocalDate from, LocalDate to) {
+        Map<String, Double> attendanceRateByMember = getAttendanceRateByMember(collectivityId, from, to);
+        if (attendanceRateByMember.isEmpty()) {
+            return 100.0;
+        }
+        return attendanceRateByMember.values().stream()
+                .reduce(0.0, Double::sum) / attendanceRateByMember.size();
+    }
+
     private Activity mapActivity(ResultSet rs) throws SQLException {
         return Activity.builder()
                 .id(rs.getString("id"))
@@ -208,5 +256,18 @@ public class ActivityRepository {
                         .id(rs.getString("collectivity_id"))
                         .build())
                 .build();
+    }
+
+    private Map<String, Double> mapCountersToRates(Map<String, AttendanceCounter> countersByMember) {
+        Map<String, Double> ratesByMember = new HashMap<>();
+        countersByMember.forEach((memberId, counter) -> ratesByMember.put(
+                memberId,
+                counter.expected == 0 ? 100.0 : (counter.present * 100.0) / counter.expected));
+        return ratesByMember;
+    }
+
+    private static class AttendanceCounter {
+        private int expected;
+        private int present;
     }
 }

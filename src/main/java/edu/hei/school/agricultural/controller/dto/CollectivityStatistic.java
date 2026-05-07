@@ -16,4 +16,5 @@ public class CollectivityStatistic {
     private String collectivityName;
     private Double upToDateMemberPercentage;
     private Integer newMembersCount;
+    private Double attendanceRate;
 }

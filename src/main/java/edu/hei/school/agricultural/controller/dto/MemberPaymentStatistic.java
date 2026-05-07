@@ -15,4 +15,5 @@ public class MemberPaymentStatistic {
     private Member member;
     private Double paidAmount;
     private Double potentialUnpaidAmount;
+    private Double attendanceRate;
 }
