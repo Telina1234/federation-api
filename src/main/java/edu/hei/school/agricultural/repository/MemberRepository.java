@@ -136,6 +136,21 @@ public class MemberRepository {
         }
     }
 
+    public boolean belongsToCollectivity(String memberId, String collectivityId) {
+        try (PreparedStatement preparedStatement = connection.prepareStatement("""
+                select id
+                from collectivity_member
+                where member_id = ?
+                  and collectivity_id = ?
+                """)) {
+            preparedStatement.setString(1, memberId);
+            preparedStatement.setString(2, collectivityId);
+            return preparedStatement.executeQuery().next();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private List<Member> findRefereesByIdMember(String idMember) {
         List<Member> memberList = new ArrayList<>();
         try (PreparedStatement preparedStatement = connection.prepareStatement("""

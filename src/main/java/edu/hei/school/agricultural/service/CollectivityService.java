@@ -1,7 +1,12 @@
 package edu.hei.school.agricultural.service;
 
+import edu.hei.school.agricultural.controller.dto.Activity;
+import edu.hei.school.agricultural.controller.dto.Attendance;
+import edu.hei.school.agricultural.controller.dto.AttendanceStatus;
 import edu.hei.school.agricultural.controller.dto.CollectivityStatistic;
 import edu.hei.school.agricultural.controller.dto.CollectivityTransaction;
+import edu.hei.school.agricultural.controller.dto.CreateActivity;
+import edu.hei.school.agricultural.controller.dto.CreateAttendance;
 import edu.hei.school.agricultural.controller.dto.FinancialAccount;
 import edu.hei.school.agricultural.controller.dto.MemberPaymentStatistic;
 import edu.hei.school.agricultural.controller.dto.CashAccount;
@@ -12,6 +17,7 @@ import edu.hei.school.agricultural.entity.Member;
 import edu.hei.school.agricultural.entity.MembershipFee;
 import edu.hei.school.agricultural.exception.BadRequestException;
 import edu.hei.school.agricultural.exception.NotFoundException;
+import edu.hei.school.agricultural.repository.ActivityRepository;
 import edu.hei.school.agricultural.repository.CollectivityRepository;
 import edu.hei.school.agricultural.repository.MemberPaymentRepository;
 import edu.hei.school.agricultural.repository.MemberRepository;
@@ -36,6 +42,7 @@ public class CollectivityService {
     private final MemberRepository memberRepository;
     private final MemberPaymentRepository memberPaymentRepository;
     private final MemberDtoMapper memberDtoMapper;
+    private final ActivityRepository activityRepository;
 
     public List<Collectivity> createCollectivities(List<Collectivity> collectivities) {
         for (Collectivity collectivity : collectivities) {
@@ -147,6 +154,92 @@ public class CollectivityService {
         collectivityRepository.findById(collectivityId)
                 .orElseThrow(() -> new NotFoundException("Collectivity.id= " + collectivityId + " not found"));
         return memberPaymentRepository.findTransactionsByCollectivity(collectivityId, from, to);
+    }
+
+    public List<Activity> createActivities(String collectivityId, List<CreateActivity> createActivities) {
+        Collectivity collectivity = collectivityRepository.findById(collectivityId)
+                .orElseThrow(() -> new NotFoundException("Collectivity.id= " + collectivityId + " not found"));
+        List<edu.hei.school.agricultural.entity.Activity> activities = createActivities.stream()
+                .map(createActivity -> {
+                    if (createActivity.getLabel() == null || createActivity.getActivityDate() == null) {
+                        throw new BadRequestException("Activity label and activityDate are required");
+                    }
+                    return edu.hei.school.agricultural.entity.Activity.builder()
+                            .id(randomUUID().toString())
+                            .label(createActivity.getLabel())
+                            .description(createActivity.getDescription())
+                            .activityDate(createActivity.getActivityDate())
+                            .mandatory(Boolean.TRUE.equals(createActivity.getMandatory()))
+                            .targetOccupation(createActivity.getTargetOccupation() == null ? null
+                                    : edu.hei.school.agricultural.entity.MemberOccupation.valueOf(createActivity.getTargetOccupation().name()))
+                            .collectivity(collectivity)
+                            .build();
+                })
+                .toList();
+        return activityRepository.saveAll(activities).stream()
+                .map(this::mapActivityToDto)
+                .toList();
+    }
+
+    public List<Activity> getActivities(String collectivityId) {
+        collectivityRepository.findById(collectivityId)
+                .orElseThrow(() -> new NotFoundException("Collectivity.id= " + collectivityId + " not found"));
+        return activityRepository.findAllByCollectivityId(collectivityId).stream()
+                .map(this::mapActivityToDto)
+                .toList();
+    }
+
+    public List<Attendance> createAttendance(String collectivityId, String activityId, List<CreateAttendance> createAttendances) {
+        collectivityRepository.findById(collectivityId)
+                .orElseThrow(() -> new NotFoundException("Collectivity.id= " + collectivityId + " not found"));
+        if (!activityRepository.belongsToCollectivity(activityId, collectivityId)) {
+            throw new NotFoundException("Activity.id=" + activityId + " not found for collectivity.id=" + collectivityId);
+        }
+        List<Attendance> attendances = createAttendances.stream()
+                .map(createAttendance -> {
+                    if (!memberRepository.belongsToCollectivity(createAttendance.getMemberIdentifier(), collectivityId)) {
+                        throw new BadRequestException("Member.id=" + createAttendance.getMemberIdentifier()
+                                + " does not belong to collectivity.id=" + collectivityId);
+                    }
+                    if (activityRepository.attendanceExists(activityId, createAttendance.getMemberIdentifier())) {
+                        throw new BadRequestException("Attendance for member.id="
+                                + createAttendance.getMemberIdentifier() + " already exists");
+                    }
+                    edu.hei.school.agricultural.entity.Member member = memberRepository
+                            .findById(createAttendance.getMemberIdentifier())
+                            .orElseThrow(() -> new NotFoundException("Member.id="
+                                    + createAttendance.getMemberIdentifier() + " not found"));
+                    return Attendance.builder()
+                            .id(randomUUID().toString())
+                            .status(createAttendance.getStatus() == null ? AttendanceStatus.ABSENT : createAttendance.getStatus())
+                            .member(memberDtoMapper.mapToDto(member))
+                            .build();
+                })
+                .toList();
+        return activityRepository.saveAttendance(activityId, attendances);
+    }
+
+    public List<Attendance> getPresentAttendance(String collectivityId, String activityId) {
+        collectivityRepository.findById(collectivityId)
+                .orElseThrow(() -> new NotFoundException("Collectivity.id= " + collectivityId + " not found"));
+        if (!activityRepository.belongsToCollectivity(activityId, collectivityId)) {
+            throw new NotFoundException("Activity.id=" + activityId + " not found for collectivity.id=" + collectivityId);
+        }
+        return activityRepository.findAttendanceByActivity(activityId).stream()
+                .filter(attendance -> AttendanceStatus.PRESENT.equals(attendance.getStatus()))
+                .toList();
+    }
+
+    private Activity mapActivityToDto(edu.hei.school.agricultural.entity.Activity activity) {
+        return Activity.builder()
+                .id(activity.getId())
+                .label(activity.getLabel())
+                .description(activity.getDescription())
+                .activityDate(activity.getActivityDate())
+                .mandatory(activity.getMandatory())
+                .targetOccupation(activity.getTargetOccupation() == null ? null
+                        : edu.hei.school.agricultural.controller.dto.MemberOccupation.valueOf(activity.getTargetOccupation().name()))
+                .build();
     }
 
     private List<MembershipFee> getActiveMembershipFeesByCollectivityIdentifier(String collectivityId) {
