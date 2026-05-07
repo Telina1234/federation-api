@@ -15,6 +15,6 @@ public class MobileBankingAccount implements FinancialAccount {
     private String id;
     private String holderName;
     private MobileBankingService mobileBankingService;
-    private Integer mobileNumber;
+    private String mobileNumber;
     private Double amount;
 }

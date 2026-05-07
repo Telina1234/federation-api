@@ -15,7 +15,7 @@ import java.time.LocalDate;
 @EqualsAndHashCode
 public class MemberPayment {
     private String id;
-    private Integer amount;
+    private Double amount;
     private PaymentMode paymentMode;
     private FinancialAccount accountCredited;
     private LocalDate creationDate;

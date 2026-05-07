@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @EqualsAndHashCode
 public class CreateMemberPayment {
-    private Integer amount;
+    private Double amount;
     private String membershipFeeIdentifier;
     private String accountCreditedIdentifier;
     private PaymentMode paymentMode;

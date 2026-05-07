@@ -4,21 +4,16 @@ import edu.hei.school.agricultural.controller.dto.Activity;
 import edu.hei.school.agricultural.controller.dto.Attendance;
 import edu.hei.school.agricultural.controller.dto.AttendanceStatus;
 import edu.hei.school.agricultural.controller.dto.CollectivityStatistic;
-import edu.hei.school.agricultural.controller.dto.CollectivityTransaction;
 import edu.hei.school.agricultural.controller.dto.CreateActivity;
 import edu.hei.school.agricultural.controller.dto.CreateAttendance;
-import edu.hei.school.agricultural.controller.dto.FinancialAccount;
 import edu.hei.school.agricultural.controller.dto.MemberPaymentStatistic;
-import edu.hei.school.agricultural.controller.dto.CashAccount;
 import edu.hei.school.agricultural.controller.mapper.MemberDtoMapper;
-import edu.hei.school.agricultural.entity.Collectivity;
-import edu.hei.school.agricultural.entity.Frequency;
-import edu.hei.school.agricultural.entity.Member;
-import edu.hei.school.agricultural.entity.MembershipFee;
+import edu.hei.school.agricultural.entity.*;
 import edu.hei.school.agricultural.exception.BadRequestException;
 import edu.hei.school.agricultural.exception.NotFoundException;
 import edu.hei.school.agricultural.repository.ActivityRepository;
 import edu.hei.school.agricultural.repository.CollectivityRepository;
+import edu.hei.school.agricultural.repository.FinancialAccountRepository;
 import edu.hei.school.agricultural.repository.MemberPaymentRepository;
 import edu.hei.school.agricultural.repository.MemberRepository;
 import edu.hei.school.agricultural.repository.MembershipFeeRepository;
@@ -30,8 +25,10 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static edu.hei.school.agricultural.entity.ActivityStatus.ACTIVE;
+import static edu.hei.school.agricultural.entity.PaymentMode.*;
 import static java.util.UUID.randomUUID;
 
 @Service
@@ -39,6 +36,7 @@ import static java.util.UUID.randomUUID;
 public class CollectivityService {
     private final CollectivityRepository collectivityRepository;
     private final MembershipFeeRepository membershipFeeRepository;
+    private final FinancialAccountRepository financialAccountRepository;
     private final MemberRepository memberRepository;
     private final MemberPaymentRepository memberPaymentRepository;
     private final MemberDtoMapper memberDtoMapper;
@@ -92,6 +90,53 @@ public class CollectivityService {
         return membershipFeeRepository.saveAll(membershipFees);
     }
 
+    public List<FinancialAccount> getFinancialAccounts(String collectivityIdentifier) {
+        Collectivity collectivity = collectivityRepository.findById(collectivityIdentifier)
+                .orElseThrow(() ->
+                        new NotFoundException("Collectivity.id= " + collectivityIdentifier + " not found"));
+
+        CashAccount cashAccount = financialAccountRepository.getCashAccountByCollectivityId(collectivity.getId());
+        List<BankAccount> bankAccounts = financialAccountRepository.getBankAccountsByCollectivityId(collectivity.getId());
+        List<MobileBankingAccount> mobileBankingAccountsByCollectivityId = financialAccountRepository.getMobileBankingAccountsByCollectivityId(collectivity.getId());
+
+        return Stream.concat(
+                Stream.concat(
+                        Stream.of(cashAccount),
+                        bankAccounts.stream()),
+                mobileBankingAccountsByCollectivityId.stream()
+        ).toList();
+    }
+
+    public List<CollectivityTransaction> getTransactionsByCollectivity(String collectivityIdentifier, LocalDate from, LocalDate to) {
+        assertValidPeriod(from, to);
+        List<FinancialAccount> financialAccounts = getFinancialAccounts(collectivityIdentifier);
+
+        return financialAccounts.stream()
+                .map(financialAccount -> {
+                    var transactionList = financialAccount.getTransactions().stream()
+                            .filter(transaction -> (transaction.getCreationDate().isAfter(from) || transaction.getCreationDate().equals(from))
+                                    && (transaction.getCreationDate().isBefore(to) || transaction.getCreationDate().equals(to)))
+                            .toList();
+                    var paymentMode = getPaymentMode(financialAccount);
+                    return transactionList.stream()
+                            .map(transaction -> {
+                                CollectivityTransaction collectivityTransaction = CollectivityTransaction.builder()
+                                        .id(transaction.getId())
+                                        .type(transaction.getType())
+                                        .amount(transaction.getAmount())
+                                        .creationDate(transaction.getCreationDate())
+                                        .accountCredited(financialAccount)
+                                        .paymentMode(paymentMode)
+                                        .memberDebited(transaction.getMemberDebited())
+                                        .build();
+                                return collectivityTransaction;
+                            })
+                            .toList();
+                })
+                .flatMap(List::stream)
+                .toList();
+    }
+
     public List<MemberPaymentStatistic> getMemberPaymentStatistics(String collectivityId, LocalDate from, LocalDate to) {
         assertValidPeriod(from, to);
         Collectivity collectivity = collectivityRepository.findById(collectivityId)
@@ -100,6 +145,7 @@ public class CollectivityService {
         Map<String, Double> paidAmountByMember = memberPaymentRepository.getPaidAmountByMember(collectivityId, from, to);
         Map<String, Double> paidAmountByMemberAndFee = memberPaymentRepository.getPaidAmountByMemberAndFee(collectivityId, from, to);
         Map<String, Double> attendanceRateByMember = activityRepository.getAttendanceRateByMember(collectivityId, from, to);
+        List<MembershipFee> activeMembershipFees = getActiveMembershipFeesByCollectivityIdentifier(collectivityId);
 
         return members.stream()
                 .map(member -> MemberPaymentStatistic.builder()
@@ -107,7 +153,7 @@ public class CollectivityService {
                         .paidAmount(paidAmountByMember.getOrDefault(member.getId(), 0.0))
                         .potentialUnpaidAmount(getPotentialUnpaidAmount(
                                 member.getId(),
-                                getActiveMembershipFeesByCollectivityIdentifier(collectivityId),
+                                activeMembershipFees,
                                 paidAmountByMemberAndFee,
                                 from,
                                 to))
@@ -124,13 +170,13 @@ public class CollectivityService {
                     long upToDateMemberCount = memberStatistics.stream()
                             .filter(statistic -> statistic.getPotentialUnpaidAmount() <= 0)
                             .count();
-                    double percentage = memberStatistics.isEmpty()
+                    double upToDatePercentage = memberStatistics.isEmpty()
                             ? 100.0
                             : (upToDateMemberCount * 100.0) / memberStatistics.size();
                     return CollectivityStatistic.builder()
                             .collectivityId(collectivity.getId())
                             .collectivityName(collectivity.getName())
-                            .upToDateMemberPercentage(percentage)
+                            .upToDateMemberPercentage(upToDatePercentage)
                             .newMembersCount(collectivityRepository.countNewMembers(
                                     collectivity.getId(),
                                     Date.valueOf(from),
@@ -139,24 +185,6 @@ public class CollectivityService {
                             .build();
                 })
                 .toList();
-    }
-
-    public List<FinancialAccount> getFinancialAccounts(String collectivityId, LocalDate at) {
-        collectivityRepository.findById(collectivityId)
-                .orElseThrow(() -> new NotFoundException("Collectivity.id= " + collectivityId + " not found"));
-        return memberPaymentRepository.getCashAccountAmountsByCollectivity(collectivityId, at).entrySet().stream()
-                .map(entry -> (FinancialAccount) CashAccount.builder()
-                        .id(entry.getKey())
-                        .amount(entry.getValue())
-                        .build())
-                .toList();
-    }
-
-    public List<CollectivityTransaction> getTransactions(String collectivityId, LocalDate from, LocalDate to) {
-        assertValidPeriod(from, to);
-        collectivityRepository.findById(collectivityId)
-                .orElseThrow(() -> new NotFoundException("Collectivity.id= " + collectivityId + " not found"));
-        return memberPaymentRepository.findTransactionsByCollectivity(collectivityId, from, to);
     }
 
     public List<Activity> createActivities(String collectivityId, List<CreateActivity> createActivities) {
@@ -174,7 +202,7 @@ public class CollectivityService {
                             .activityDate(createActivity.getActivityDate())
                             .mandatory(Boolean.TRUE.equals(createActivity.getMandatory()))
                             .targetOccupation(createActivity.getTargetOccupation() == null ? null
-                                    : edu.hei.school.agricultural.entity.MemberOccupation.valueOf(createActivity.getTargetOccupation().name()))
+                                    : MemberOccupation.valueOf(createActivity.getTargetOccupation().name()))
                             .collectivity(collectivity)
                             .build();
                 })
@@ -208,7 +236,7 @@ public class CollectivityService {
                         throw new BadRequestException("Attendance for member.id="
                                 + createAttendance.getMemberIdentifier() + " already exists");
                     }
-                    edu.hei.school.agricultural.entity.Member member = memberRepository
+                    Member member = memberRepository
                             .findById(createAttendance.getMemberIdentifier())
                             .orElseThrow(() -> new NotFoundException("Member.id="
                                     + createAttendance.getMemberIdentifier() + " not found"));
@@ -231,6 +259,18 @@ public class CollectivityService {
         return activityRepository.findAttendanceByActivity(activityId).stream()
                 .filter(attendance -> AttendanceStatus.PRESENT.equals(attendance.getStatus()))
                 .toList();
+    }
+
+    private PaymentMode getPaymentMode(FinancialAccount financialAccount) {
+        PaymentMode paymentMode;
+        paymentMode = switch (financialAccount) {
+            case BankAccount ignored -> BANK_TRANSFER;
+            case MobileBankingAccount ignored -> MOBILE_BANKING;
+            case CashAccount ignored -> CASH;
+            default ->
+                    throw new IllegalArgumentException("Unknown financial account type " + financialAccount.getClass().getTypeName());
+        };
+        return paymentMode;
     }
 
     private Activity mapActivityToDto(edu.hei.school.agricultural.entity.Activity activity) {

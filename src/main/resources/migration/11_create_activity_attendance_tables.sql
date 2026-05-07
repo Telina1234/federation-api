@@ -9,6 +9,9 @@ $$
     end
 $$;
 
+alter table if exists "collectivity_member"
+    add column if not exists membership_date date default current_date;
+
 create table if not exists "collectivity_activity"
 (
     id                varchar primary key,

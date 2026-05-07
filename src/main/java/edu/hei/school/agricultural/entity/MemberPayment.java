@@ -1,25 +1,20 @@
 package edu.hei.school.agricultural.entity;
 
-import edu.hei.school.agricultural.controller.dto.PaymentMode;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDate;
 
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-@Getter
-@Setter
+@EqualsAndHashCode
 public class MemberPayment {
     private String id;
-    private Integer amount;
-    private PaymentMode paymentMode;
-    private String accountCreditedIdentifier;
-    private LocalDate creationDate;
-    private Member member;
+    private Double amount;
     private MembershipFee membershipFee;
+    private PaymentMode paymentMode;
+    private FinancialAccount accountCredited;
+    private Member memberOwner;
+    private LocalDate creationDate;
 }

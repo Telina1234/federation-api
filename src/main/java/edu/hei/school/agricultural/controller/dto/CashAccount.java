@@ -13,5 +13,5 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode
 public class CashAccount implements FinancialAccount {
     private String id;
-    private Integer amount;
+    private Double amount;
 }
